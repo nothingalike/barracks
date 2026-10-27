@@ -1,0 +1,28 @@
+import {test,expect} from '@playwright/test';
+import {writeFileSync} from 'node:fs';
+test('real task runs through BA and independent review from the dashboard',async({page})=>{
+  test.skip(process.env.BARRACKS_REAL_TESTS!=='1','Opt in explicitly: this test invokes authenticated Codex workers.');
+  test.setTimeout(480000);
+  await page.goto('/');await page.getByRole('button',{name:'New task'}).click();
+  await expect(page.getByLabel('Worker execution')).toHaveValue('codex');
+  const title='Real browser qualification: configured team and recovery policy';
+  await page.getByLabel('Task title').fill(title);
+  await page.getByLabel('Description').fill('Ask BA refinement for a short plan before implementation. Implement slugify according to README.md, preserve protected files, pass tests, and satisfy the staged regression-test review. All work belongs in this disposable workspace.');
+  await page.getByLabel('Scope is ready; Lead may skip BA refinement').uncheck();
+  await page.getByRole('button',{name:'Add to queue'}).click();
+  await expect(page.locator('.detail h2')).toHaveText(title);
+  await expect(page.locator('.complete-notice')).toContainText('Verification and independent review passed',{timeout:450000});
+  await page.getByText('BA scope and plan',{exact:true}).click();
+  await expect(page.locator('.workspace-path')).toContainText('.state');
+  const snapshot=await(await page.request.get('/api/snapshot')).json();
+  const task=snapshot.tasks.find((item:{title:string})=>item.title===title);
+  expect(task.execution).toBe('codex');expect(task.reviewCycles).toBe(2);expect(task.plan).toBeTruthy();expect(task.candidate).toMatch(/^[a-f0-9]{40}$/);
+  const details=await(await page.request.get('/api/tasks/'+task.id+'/details')).json();
+  const sessions=details.attempts.map((item:{sessionId:string})=>item.sessionId).filter(Boolean);
+  expect(sessions.length).toBeGreaterThanOrEqual(6);expect(new Set(sessions).size).toBe(sessions.length);
+  expect(details.attempts.every((item:{process:{drained:boolean}})=>item.process.drained)).toBe(true);
+  const assignments=snapshot.assignments.filter((item:{taskId:string})=>item.taskId===task.id);
+  expect(assignments.some((item:{role:string})=>item.role==='ba')).toBe(true);
+  await page.screenshot({path:'.state/real-tests/real-dashboard.png',fullPage:true});
+  writeFileSync('.state/real-tests/browser-real-result.json',JSON.stringify({status:'passed',task,assignments,sessions,checkedAt:new Date().toISOString()},null,2));
+});

@@ -1,0 +1,8 @@
+{
+  "id": "saltwake",
+  "repository": "C:/Users/johns/source/repos/Saltwake-rust",
+  "integrationBranch": "rust-refactor",
+  "protectedBranches": ["main"],
+  "participants": ["lead", "ba", "builder-a", "builder-b"],
+  "liveDispatch": false
+}

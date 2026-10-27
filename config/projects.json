@@ -1,0 +1,236 @@
+{
+  "codexExecutable": "C:/Users/johns/.codex/packages/app-server-daemon/releases/0.163.0-x86_64-pc-windows-msvc/bin/codex.exe",
+  "attemptTimeoutMs": null,
+  "inactivityWarningMs": 600000,
+  "projects": [
+    {
+      "id": "slug",
+      "name": "Disposable slug utility",
+      "kind": "fixture",
+      "path": "test/fixtures/slug-repo",
+      "ref": "HEAD",
+      "protectedPaths": [
+        "README.md",
+        "slug.test.mjs"
+      ],
+      "verify": [
+        {
+          "executable": "node",
+          "args": [
+            "--test"
+          ],
+          "sandbox": "read-only"
+        }
+      ],
+      "reviewChecklist": "Confirm slugify follows README.md and passes the tests. When the task requests the review/fix challenge, require slug.edge.test.mjs with slugify('  A___B---C  ') === 'a-b-c'.",
+      "instructions": ""
+    },
+    {
+      "id": "todo-app",
+      "name": "todo-app",
+      "kind": "repository",
+      "path": "C:\\Users\\johns\\source\\repos\\todo-app",
+      "ref": "HEAD",
+      "protectedPaths": [],
+      "verify": [],
+      "reviewChecklist": "Confirm the task acceptance criteria, inspect the changes and require all configured verification commands to pass.",
+      "instructions": ""
+    },
+    {
+      "id": "saltwake",
+      "name": "Saltwake",
+      "kind": "repository",
+      "path": "C:\\Users\\johns\\source\\repos\\Saltwake-rust",
+      "trackerPath": "C:\\Users\\johns\\.headquarters\\saltwake",
+      "delivery": {
+        "selection": "epic",
+        "excludeLabels": [
+          "Grok"
+        ],
+        "excludeRollups": true,
+        "requirePathGrants": true,
+        "sharedPaths": [
+          "src/main.rs",
+          "src/presentation.rs",
+          "src/starter.rs",
+          "src/navigation/"
+        ],
+        "reviewAxes": [
+          "spec",
+          "standards"
+        ],
+        "evidencePolicy": "explicit",
+        "requireEvidenceKinds": [],
+        "completion": "accepted",
+        "publication": "reviewed-branch",
+        "leadDelegation": "project"
+      },
+      "transfer": {
+        "root": "C:\\Users\\johns\\source\\repos\\barracks\\.state\\transfers\\8bb49f5f-4159-4096-aca1-1d0cc35bee6c",
+        "sha256": "6b9dfa56b3ab5b8b856490c5477fc8ed5a013200541593d34b70495b343ca909",
+        "approved": true
+      },
+      "ref": "HEAD",
+      "protectedPaths": [],
+      "verify": [
+        {
+          "executable": "C:/Users/johns/.cargo/bin/cargo.exe",
+          "args": [
+            "fmt",
+            "--all",
+            "--",
+            "--check"
+          ],
+          "sandbox": "workspace-write",
+          "timeoutMs": null
+        },
+        {
+          "executable": "C:/Users/johns/.cargo/bin/cargo.exe",
+          "args": [
+            "test",
+            "--offline",
+            "--locked",
+            "--workspace",
+            "--all-features"
+          ],
+          "sandbox": "workspace-write",
+          "timeoutMs": null,
+          "evidenceKind": "unit"
+        },
+        {
+          "executable": "C:/Users/johns/.cargo/bin/cargo.exe",
+          "args": [
+            "clippy",
+            "--offline",
+            "--locked",
+            "--workspace",
+            "--all-targets",
+            "--all-features",
+            "--",
+            "-D",
+            "warnings"
+          ],
+          "sandbox": "workspace-write",
+          "timeoutMs": null
+        },
+        {
+          "executable": "C:/Users/johns/.cargo/bin/cargo.exe",
+          "args": [
+            "clippy",
+            "--offline",
+            "--locked",
+            "--workspace",
+            "--all-targets",
+            "--all-features",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--",
+            "-D",
+            "warnings"
+          ],
+          "sandbox": "workspace-write",
+          "timeoutMs": null
+        },
+        {
+          "executable": "C:/Users/johns/.cargo/bin/cargo.exe",
+          "args": [
+            "build",
+            "--offline",
+            "--locked",
+            "--features",
+            "verification"
+          ],
+          "sandbox": "workspace-write",
+          "timeoutMs": null,
+          "artifacts": [
+            {
+              "path": ".state/cargo/debug/saltwake-client.exe",
+              "name": "Native development executable",
+              "role": "build"
+            }
+          ]
+        },
+        {
+          "executable": "C:/Users/johns/.cargo/bin/trunk.exe",
+          "args": [
+            "build",
+            "--offline",
+            "--locked",
+            "--features",
+            "verification",
+            "--filehash=false",
+            "--dist",
+            ".state/site"
+          ],
+          "sandbox": "workspace-write",
+          "timeoutMs": null,
+          "artifacts": [
+            {
+              "path": ".state/site/saltwake-client_bg.wasm",
+              "name": "Packaged development Wasm",
+              "role": "build"
+            }
+          ]
+        }
+      ],
+      "environment": {
+        "CARGO_TARGET_DIR": "{workspace}/.state/cargo",
+        "CARGO_BUILD_JOBS": "2",
+        "CARGO_PROFILE_DEV_OPT_LEVEL": "0",
+        "NO_COLOR": "true",
+        "CARGO_NET_OFFLINE": "true"
+      },
+      "tools": [
+        {
+          "name": "wasm-bindgen.exe",
+          "path": "C:/Users/johns/AppData/Local/trunkrs/trunk/cache/wasm-bindgen-0.2.129/wasm-bindgen.exe",
+          "sha256": "7923ed91d8ece7a2986dc5de9395bff2a8e5cae483330b13d0ec97a955b0e351"
+        }
+      ],
+      "team": [
+        {
+          "id": "lead",
+          "name": "Saltwake Lead",
+          "roles": [
+            "lead"
+          ]
+        },
+        {
+          "id": "ba",
+          "name": "Saltwake BA",
+          "roles": [
+            "ba",
+            "reviewer"
+          ],
+          "reviewAxes": [
+            "spec"
+          ]
+        },
+        {
+          "id": "session",
+          "name": "Builder Session",
+          "roles": [
+            "builder",
+            "reviewer"
+          ],
+          "reviewAxes": [
+            "standards"
+          ]
+        },
+        {
+          "id": "view",
+          "name": "Builder View",
+          "roles": [
+            "builder",
+            "reviewer"
+          ],
+          "reviewAxes": [
+            "standards"
+          ]
+        }
+      ],
+      "reviewChecklist": "Compare the selected capability with its pinned original source behavior. Preserve sole owner boundaries, Save failure/reopen semantics and existing approved behavior. Spec and Standards require different independent peers; full parent outcomes remain open until separately accepted.",
+      "instructions": "Saltwake handover completed after the prior four-role team finished SW-199/SW-355 at62703e6. Barracks supervised SW-352 through independent Spec/Standards, Lead integration, all4 acceptance criteria and Source delivery at a2ed2b8b184b290fe0504fc4cdf2734c8d3cd561 on rust-refactor. The old coordinator remains fenced. An operator-started epic delivery authorizes the configured Lead to coordinate that epic's eligible unfinished work, plan minimal explicit relative source ownership read-only before Builder assignment, and route missing scope/evidence to BA. Existing source grants stay pinned; use the configured Lead interface decision for additional shared files. The runner owns dependency scheduling, worktree isolation, participant capacity and independent reviews. Honor excluded labels and parent rollups; report deferred outside dependencies without inventing completion. Preserve original JS oracle73538aa9, sole domain owners, Source/Save atomicity and accepted behavior. Parent outcomes remain open until separately accepted. Reviewed-branch Source integration remains Lead/operator-owned; main, draftPR530 and external preview publication retain separate authority. Backend verification stays waived/stopped. Distinguish native/browser observations from physical hardware/audio/performance evidence. New jobs use private caches, tools and profiles; preserve all user/game servers, retained saves and old worktrees. Sandboxed Chromium remains unqualified; graphical criteria need appropriate independent observer evidence. Skills are adapted to assigned runner stages and never expand the four-person team. No automatic next delivery is authorized by saving this profile; await the operator's selected epic and Start action."
+    }
+  ]
+}
