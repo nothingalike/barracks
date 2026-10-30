@@ -1,0 +1,798 @@
+{
+  "schemaVersion": 3,
+  "id": "qualified-delivery",
+  "name": "Qualified project delivery",
+  "description": "Deliver dependency-ready tickets one at a time, with separate Spec and Standards reviews, then review integration, confirm applied source, run acceptance and record a retrospective. Confirm final publication manually. Parallel scheduling and child workflows are deferred.",
+  "inputs": [
+    "task",
+    "project",
+    "epic"
+  ],
+  "initial": "select_ticket",
+  "states": {
+    "select_ticket": {
+      "type": "agent",
+      "persona": "lead",
+      "instructions": "Read the epic ticket list, dependency graph and delivery_progress. Select one unfinished ticket whose dependencies have accepted receipts. Treat an absent delivery_progress as empty. Return all_done only when every in-scope ticket has an accepted exact candidate. Include delivery_tickets, acceptance_criteria and an integration_plan identifying all accepted revisions and the configured integration branch. Ask for a decision if scope, dependencies or branch authority is unresolved. Return delivery_progress with the full set of accepted receipts, including an empty set for an empty epic.",
+      "inputs": [
+        "task",
+        "project",
+        "epic"
+      ],
+      "optionalInputs": [
+        "delivery_progress",
+        "acceptance_report",
+        "answers"
+      ],
+      "on": {
+        "ticket_selected": {
+          "target": "triage",
+          "outputs": [
+            "ticket"
+          ],
+          "clear": [
+            "lead_assessment",
+            "implementation_plan",
+            "candidate",
+            "spec_findings",
+            "review_findings",
+            "accepted_ticket",
+            "questions",
+            "answers",
+            "resolution",
+            "delivery_candidate",
+            "integration_review",
+            "acceptance_report",
+            "acceptance_candidate",
+            "retrospective",
+            "publication"
+          ]
+        },
+        "all_done": {
+          "target": "integrate",
+          "outputs": [
+            "delivery_tickets",
+            "acceptance_criteria",
+            "integration_plan",
+            "delivery_progress"
+          ]
+        },
+        "needs_user": {
+          "target": "await_select_ticket",
+          "outputs": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "triage": {
+      "type": "agent",
+      "persona": "lead",
+      "instructions": "Assess ticket scope and dependency readiness. Resolve routine technical issues within existing authority. Route prepared work through BA readiness and preserve the configured scope.",
+      "inputs": [
+        "task",
+        "project",
+        "epic",
+        "ticket"
+      ],
+      "optionalInputs": [
+        "questions",
+        "resolution",
+        "answers"
+      ],
+      "on": {
+        "ready": {
+          "target": "refine",
+          "outputs": [
+            "lead_assessment"
+          ]
+        },
+        "needs_user": {
+          "target": "await_triage",
+          "outputs": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "refine": {
+      "type": "agent",
+      "persona": "ba",
+      "instructions": "Verify scope, acceptance criteria, dependencies and verification readiness. Return a self-contained implementation plan.",
+      "inputs": [
+        "task",
+        "project",
+        "epic",
+        "ticket",
+        "lead_assessment"
+      ],
+      "optionalInputs": [
+        "resolution",
+        "answers"
+      ],
+      "on": {
+        "refined": {
+          "target": "build",
+          "outputs": [
+            "implementation_plan"
+          ]
+        },
+        "needs_user": {
+          "target": "await_refine",
+          "outputs": [
+            "questions"
+          ]
+        },
+        "technical_blocker": {
+          "target": "triage",
+          "outputs": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "build": {
+      "type": "agent",
+      "persona": "builder",
+      "instructions": "Apply implement/tdd at the accepted seams. Establish failing behavior evidence, implement the slice, preserve predecessor behavior and run required checks. Return candidate with the exact revision or content identity, workspace, scope, verification commands/results and limitations. Use the configured working branch and authorized workspace.",
+      "inputs": [
+        "task",
+        "project",
+        "epic",
+        "ticket",
+        "implementation_plan"
+      ],
+      "optionalInputs": [
+        "review_findings",
+        "spec_findings",
+        "resolution",
+        "answers"
+      ],
+      "on": {
+        "implemented": {
+          "target": "review_spec",
+          "outputs": [
+            "candidate"
+          ],
+          "clear": [
+            "spec_findings",
+            "review_findings",
+            "accepted_ticket",
+            "delivery_candidate",
+            "integration_review",
+            "acceptance_report",
+            "acceptance_candidate",
+            "retrospective",
+            "publication"
+          ]
+        },
+        "needs_user": {
+          "target": "await_build",
+          "outputs": [
+            "questions"
+          ]
+        },
+        "technical_blocker": {
+          "target": "triage",
+          "outputs": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "review_spec": {
+      "type": "agent",
+      "persona": "ba",
+      "instructions": "Independently compare the exact candidate with agreed behavior, exclusions and acceptance criteria. Cite source and test evidence. Any changed source requires a fresh build and both reviews.",
+      "inputs": [
+        "task",
+        "project",
+        "epic",
+        "ticket",
+        "candidate"
+      ],
+      "optionalInputs": [
+        "answers"
+      ],
+      "on": {
+        "approved": {
+          "target": "review",
+          "outputs": [
+            "spec_findings"
+          ]
+        },
+        "changes": {
+          "target": "build",
+          "outputs": [
+            "spec_findings"
+          ],
+          "clear": [
+            "review_findings",
+            "accepted_ticket",
+            "delivery_candidate",
+            "integration_review",
+            "acceptance_report",
+            "acceptance_candidate",
+            "retrospective",
+            "publication"
+          ]
+        },
+        "source_changed": {
+          "target": "build",
+          "clear": [
+            "candidate",
+            "spec_findings",
+            "review_findings",
+            "accepted_ticket",
+            "delivery_candidate",
+            "integration_review",
+            "acceptance_report",
+            "acceptance_candidate",
+            "retrospective",
+            "publication"
+          ]
+        },
+        "needs_user": {
+          "target": "await_review_spec",
+          "outputs": [
+            "questions"
+          ]
+        },
+        "technical_blocker": {
+          "target": "triage",
+          "outputs": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "review": {
+      "type": "agent",
+      "persona": "reviewer",
+      "instructions": "Review Standards for the exact candidate that passed Spec review. Cite actionable findings and regression evidence. Approve only the reviewed revision.",
+      "inputs": [
+        "task",
+        "project",
+        "epic",
+        "ticket",
+        "candidate",
+        "spec_findings"
+      ],
+      "optionalInputs": [
+        "answers"
+      ],
+      "on": {
+        "approved": {
+          "target": "accept_ticket",
+          "outputs": [
+            "review_findings"
+          ]
+        },
+        "changes": {
+          "target": "build",
+          "outputs": [
+            "review_findings"
+          ],
+          "clear": [
+            "accepted_ticket",
+            "delivery_candidate",
+            "integration_review",
+            "acceptance_report",
+            "acceptance_candidate",
+            "retrospective",
+            "publication"
+          ]
+        },
+        "source_changed": {
+          "target": "build",
+          "clear": [
+            "candidate",
+            "spec_findings",
+            "review_findings",
+            "accepted_ticket",
+            "delivery_candidate",
+            "integration_review",
+            "acceptance_report",
+            "acceptance_candidate",
+            "retrospective",
+            "publication"
+          ]
+        },
+        "needs_user": {
+          "target": "await_review",
+          "outputs": [
+            "questions"
+          ]
+        },
+        "technical_blocker": {
+          "target": "triage",
+          "outputs": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "accept_ticket": {
+      "type": "agent",
+      "persona": "lead",
+      "instructions": "Check that review evidence names the exact current candidate and satisfies the ticket criteria. Record accepted_ticket with its scope, candidate identity and review references. Acceptance here records a review outcome. Source integration and PMT status changes belong to their explicit handoff checkpoints. Update delivery_progress with this accepted ticket, replacing any previous receipt for the same ticket.",
+      "inputs": [
+        "task",
+        "project",
+        "epic",
+        "ticket",
+        "candidate",
+        "review_findings",
+        "spec_findings"
+      ],
+      "optionalInputs": [
+        "delivery_progress",
+        "answers"
+      ],
+      "on": {
+        "accepted": {
+          "target": "select_ticket",
+          "outputs": [
+            "accepted_ticket",
+            "delivery_progress"
+          ]
+        },
+        "changes": {
+          "target": "build",
+          "outputs": [
+            "review_findings"
+          ],
+          "clear": [
+            "accepted_ticket",
+            "delivery_candidate",
+            "integration_review",
+            "acceptance_report",
+            "acceptance_candidate",
+            "retrospective",
+            "publication"
+          ]
+        },
+        "needs_user": {
+          "target": "await_accept_ticket",
+          "outputs": [
+            "questions"
+          ]
+        },
+        "technical_blocker": {
+          "target": "triage",
+          "outputs": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "await_triage": {
+      "type": "human",
+      "instructions": "Answer the questions from triage. Your answer returns to that state; it does not approve its work.",
+      "inputs": [
+        "questions"
+      ],
+      "on": {
+        "answered": {
+          "target": "triage",
+          "outputs": [
+            "answers"
+          ],
+          "clear": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "await_refine": {
+      "type": "human",
+      "instructions": "Answer the questions from refine. Your answer returns to that state; it does not approve its work.",
+      "inputs": [
+        "questions"
+      ],
+      "on": {
+        "answered": {
+          "target": "refine",
+          "outputs": [
+            "answers"
+          ],
+          "clear": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "await_build": {
+      "type": "human",
+      "instructions": "Answer the questions from build. Your answer returns to that state; it does not approve its work.",
+      "inputs": [
+        "questions"
+      ],
+      "on": {
+        "answered": {
+          "target": "build",
+          "outputs": [
+            "answers"
+          ],
+          "clear": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "await_review": {
+      "type": "human",
+      "instructions": "Answer the questions from review. Your answer returns to that state; it does not approve its work.",
+      "inputs": [
+        "questions"
+      ],
+      "on": {
+        "answered": {
+          "target": "review",
+          "outputs": [
+            "answers"
+          ],
+          "clear": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "await_review_spec": {
+      "type": "human",
+      "instructions": "Answer the questions from review_spec. Your answer returns to that state; it does not approve its work.",
+      "inputs": [
+        "questions"
+      ],
+      "on": {
+        "answered": {
+          "target": "review_spec",
+          "outputs": [
+            "answers"
+          ],
+          "clear": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "await_accept_ticket": {
+      "type": "human",
+      "instructions": "Answer the questions from accept_ticket. Your answer returns to that state; it does not approve its work.",
+      "inputs": [
+        "questions"
+      ],
+      "on": {
+        "answered": {
+          "target": "accept_ticket",
+          "outputs": [
+            "answers"
+          ],
+          "clear": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "integrate": {
+      "type": "agent",
+      "persona": "lead",
+      "instructions": "Review the integration plan and all exact accepted ticket candidates against the epic scope, dependencies and review evidence. Describe checks for the combined candidate. Return integration_ready only for the configured integration branch and existing authority. The next human checkpoint applies integration and confirms its actual result.",
+      "inputs": [
+        "task",
+        "project",
+        "epic",
+        "delivery_tickets",
+        "acceptance_criteria",
+        "integration_plan"
+      ],
+      "optionalInputs": [
+        "answers"
+      ],
+      "on": {
+        "integration_ready": {
+          "target": "apply_integration",
+          "outputs": [
+            "integration_review"
+          ]
+        },
+        "changes": {
+          "target": "reopen_ticket",
+          "outputs": [
+            "integration_findings"
+          ]
+        },
+        "needs_user": {
+          "target": "await_integrate",
+          "outputs": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "apply_integration": {
+      "type": "human",
+      "instructions": "Apply the reviewed integration using your available tools and the configured integration branch. Preserve existing edits. Provide delivery_candidate identifying the actual combined source, its workspace, revision or content identity, and verification evidence. Confirm only after the operation succeeds.",
+      "inputs": [
+        "project",
+        "integration_plan",
+        "integration_review",
+        "delivery_tickets"
+      ],
+      "on": {
+        "integrated": {
+          "target": "acceptance",
+          "outputs": [
+            "delivery_candidate"
+          ],
+          "clear": [
+            "acceptance_report",
+            "acceptance_candidate",
+            "retrospective",
+            "publication"
+          ]
+        },
+        "changes": {
+          "target": "integrate",
+          "outputs": [
+            "answers"
+          ]
+        }
+      }
+    },
+    "acceptance": {
+      "type": "agent",
+      "persona": "acceptance-tester",
+      "instructions": "Exercise the assembled epic acceptance criteria against the exact delivery_candidate. Report each criterion as passed, failed or unverified with command/results or user-visible evidence. Return acceptance_passed only when every assigned criterion passes. acceptance_candidate identifies the tested revision. Keep source unchanged.",
+      "inputs": [
+        "task",
+        "project",
+        "epic",
+        "delivery_candidate",
+        "delivery_tickets",
+        "acceptance_criteria"
+      ],
+      "optionalInputs": [
+        "resolution",
+        "answers"
+      ],
+      "on": {
+        "acceptance_passed": {
+          "target": "retrospective",
+          "outputs": [
+            "acceptance_report",
+            "acceptance_candidate"
+          ]
+        },
+        "changes": {
+          "target": "reopen_ticket",
+          "outputs": [
+            "acceptance_report"
+          ],
+          "clear": [
+            "acceptance_candidate",
+            "retrospective",
+            "publication"
+          ]
+        },
+        "needs_user": {
+          "target": "await_acceptance",
+          "outputs": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "reopen_ticket": {
+      "type": "agent",
+      "persona": "lead",
+      "instructions": "Use acceptance_report or integration_findings to identify the affected in-scope ticket. Return that ticket and a lead_assessment describing the required repair. Update delivery_progress to remove its previous acceptance and any dependent receipts invalidated by the repair. Route the repair through BA, Builder and independent review again.",
+      "inputs": [
+        "task",
+        "project",
+        "epic",
+        "delivery_tickets"
+      ],
+      "optionalInputs": [
+        "acceptance_report",
+        "integration_findings",
+        "delivery_progress",
+        "answers"
+      ],
+      "on": {
+        "reopened": {
+          "target": "refine",
+          "outputs": [
+            "ticket",
+            "lead_assessment",
+            "delivery_progress"
+          ],
+          "clear": [
+            "implementation_plan",
+            "candidate",
+            "spec_findings",
+            "review_findings",
+            "accepted_ticket",
+            "questions",
+            "answers",
+            "resolution",
+            "delivery_candidate",
+            "integration_review",
+            "acceptance_report",
+            "acceptance_candidate",
+            "retrospective",
+            "publication"
+          ]
+        },
+        "needs_user": {
+          "target": "await_reopen_ticket",
+          "outputs": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "retrospective": {
+      "type": "agent",
+      "persona": "retrospective-analyst",
+      "instructions": "Apply retro to the supplied execution and acceptance evidence. Propose evidence-backed improvements to navigation, checks, review standards and instructions, or explicitly conclude that no change is warranted. Separate proposals from adopted changes.",
+      "inputs": [
+        "task",
+        "project",
+        "epic",
+        "acceptance_report",
+        "acceptance_candidate",
+        "delivery_progress"
+      ],
+      "optionalInputs": [
+        "answers"
+      ],
+      "on": {
+        "retrospective_ready": {
+          "target": "publish_source",
+          "outputs": [
+            "retrospective"
+          ]
+        },
+        "needs_user": {
+          "target": "await_retrospective",
+          "outputs": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "publish_source": {
+      "type": "human",
+      "instructions": "Confirm the exact accepted source is present in the configured project folder through the authorized publication method. Preserve existing edits and branch authority. Provide publication with destination, exact source identity and actual operation evidence after publication succeeds.",
+      "inputs": [
+        "project",
+        "acceptance_candidate",
+        "acceptance_report",
+        "retrospective"
+      ],
+      "on": {
+        "published": {
+          "target": "complete",
+          "outputs": [
+            "publication"
+          ]
+        },
+        "source_changed": {
+          "target": "integrate",
+          "outputs": [
+            "answers"
+          ],
+          "clear": [
+            "delivery_candidate",
+            "acceptance_candidate",
+            "acceptance_report",
+            "retrospective",
+            "publication"
+          ]
+        }
+      }
+    },
+    "await_select_ticket": {
+      "type": "human",
+      "instructions": "Answer the questions from select_ticket. Your answer returns to that state; it does not approve its work.",
+      "inputs": [
+        "questions"
+      ],
+      "on": {
+        "answered": {
+          "target": "select_ticket",
+          "outputs": [
+            "answers"
+          ],
+          "clear": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "await_integrate": {
+      "type": "human",
+      "instructions": "Answer the questions from integrate. Your answer returns to that state; it does not approve its work.",
+      "inputs": [
+        "questions"
+      ],
+      "on": {
+        "answered": {
+          "target": "integrate",
+          "outputs": [
+            "answers"
+          ],
+          "clear": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "await_acceptance": {
+      "type": "human",
+      "instructions": "Answer the questions from acceptance. Your answer returns to that state; it does not approve its work.",
+      "inputs": [
+        "questions"
+      ],
+      "on": {
+        "answered": {
+          "target": "acceptance",
+          "outputs": [
+            "answers"
+          ],
+          "clear": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "await_reopen_ticket": {
+      "type": "human",
+      "instructions": "Answer the questions from reopen_ticket. Your answer returns to that state; it does not approve its work.",
+      "inputs": [
+        "questions"
+      ],
+      "on": {
+        "answered": {
+          "target": "reopen_ticket",
+          "outputs": [
+            "answers"
+          ],
+          "clear": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "await_retrospective": {
+      "type": "human",
+      "instructions": "Answer the questions from retrospective. Your answer returns to that state; it does not approve its work.",
+      "inputs": [
+        "questions"
+      ],
+      "on": {
+        "answered": {
+          "target": "retrospective",
+          "outputs": [
+            "answers"
+          ],
+          "clear": [
+            "questions"
+          ]
+        }
+      }
+    },
+    "complete": {
+      "type": "final",
+      "inputs": [
+        "delivery_candidate",
+        "acceptance_candidate",
+        "acceptance_report",
+        "retrospective",
+        "publication"
+      ],
+      "message": "Reviewed source was integrated and acceptance passed for the exact candidate. Retrospective recorded. Publication was confirmed."
+    }
+  }
+}

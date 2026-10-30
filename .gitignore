@@ -1,11 +1,9 @@
 node_modules/
-.barracks/
-archive/2026-10-22/evidence/
 dist/
 .state/
-.workspace/barracks-operations.sqlite*
 .env
 .env.*
 !.env.example
-
-.workspace/barracks-authority.sqlite*
+**/bin/
+**/obj/
+TestResults/

@@ -1,58 +1,81 @@
 # Barracks
 
-Barracks is a local software factory built around a persisted state machine. Configured coding workers perform assignments; the runner validates their results and advances work through the workflow. The dashboard shows progress and provides intervention controls.
+A small local agent workflow runner built with C#/.NET 10, Stateless, Spectre.Console and SQLite.
 
-## Current work
+- `config/personas/`: nine preserved agent instruction files.
+- `config/workflows/`: six workflow definitions, one JSON file per workflow.
 
-The application has a Vite/React dashboard, a local Node/TypeScript runner and SQLite persistence. Select a project in the header, then create a task by choosing a predefined real workflow, entering a title and describing the goal. Project selection applies to tasks, tickets and creation. Saltwake intake is not enabled.
+The previous implementation is preserved on `main` at `0d91304fd83633bc79fe9c519c46b9d2ad58d373`.
 
-Open **Library** in the header to manage shared **Personas** and **Workflows**. Persona instructions and workflow states/handoffs are editable in the app. Saves update the canonical configuration files; new tasks use the saved definitions and existing tasks retain their snapshots. Referenced personas must be reassigned before deletion.
+The first runner executes `grilling` read-only through the installed Codex CLI. The other five workflows remain definitions for later delivery work. The previous web runner is preserved in the snapshot.
 
-**Product discovery / grilling** develops and challenges the brief, then produces a specification and tracer-bullet ticket plan. You review the specification and test seams, then the ticket breakdown and blocking dependencies, before publication to PMT. Each review offers approval or requested changes; unresolved questions return to the persona that asked them. **Epic delivery** starts separately and routes each dependency-ready ticket through Lead, mandatory BA readiness, Builder implementation/TDD and independent Standards/Spec review. The assembled source then passes candidate-bound acceptance and a retrospective. Acceptance defects return through implementation and review. [Workflow configuration](docs/workflow-configuration.md) defines the handoffs and evidence contracts; [glossary](GLOSSARY.md) distinguishes workflow tasks from tickets.
+## Run grilling
 
-Real-task testing covers refinement, implementation, independent review and fixes. Owned Windows process jobs gate cancellation and interrupted recovery; a stale review cannot complete a changed source candidate.
+Requirements: .NET 10 SDK and an authenticated native Codex executable. Barracks discovers Codex on PATH or in the local desktop installation. Use `--codex <path>` or `BARRACKS_CODEX` to choose another executable.
 
-Agent assignments run without a fixed deadline by default. Optional state deadlines, bounded verification commands, inactivity warnings and repeated-failure escalation provide supervision. Inactivity leaves the agent running; cancellation and interruption retain files and require confirmed process cleanup before replacement. See [assignment supervision](docs/workflow-configuration.md#assignment-supervision).
-
-## Repository layout
-
-| Path | Purpose |
-|---|---|
-| docs/current-direction.md | Current scope and adopted policies |
-| docs/workflow.md | State transitions, capacity and recovery contract |
-| config/workflow.json | State parallelism and retry budgets |
-| config/workflows.json | State-machine graphs: initial state, personas, events, handoffs, artifacts and limits |
-| config/projects.json, config/personas/ | Local projects, verification commands and worker instructions |
-| docs/testing.md | Dashboard instructions and repeatable real tests |
-| server/, shared/, web/, test/ | Runner, contracts, dashboard and verification |
-| project/ | Canonical PMT stories and planning history; reassess existing items before assignment |
-| .workspace/pm-toolbox.yml | PMT workspace configuration |
-| archive/ | Superseded Factory starter, standalone proof and runtime experiments |
-
-## Run
-
-Use Node 22.23.3 (recorded in `.node-version`) or a compatible newer version:
+From PowerShell in this folder:
 
 ```powershell
-npm install
-npm run build
-npm start
+.\barracks.ps1 validate
+.\barracks.ps1 run --workflow grilling --project $PWD.Path --task "Explore how Barracks should display agent activity."
 ```
 
-Open <http://127.0.0.1:4111>. Select or add your local project, click **New task**, choose **Product discovery / grilling**, and describe what you want. Review/edit outputs in **Tickets**, then start **Epic delivery** for the chosen epic when ready. There is no execution-mode or project field in the task form. [Testing guide](docs/testing.md) explains setup and controls.
+The terminal shows persona colors, the workflow, current state, allowed transitions, elapsed time and recent observed activity. At a human state, live rendering ends before questions and review controls appear. Choose an outcome, supply its payload fields, or choose **Leave waiting**. Long text and structured values can be supplied as `@path` to a UTF-8 text or JSON file. Recorded questions, answers and review decisions remain available across rounds.
 
-For development, `npm run dev` starts the runner on 4111 and Vite on 5174. Stop your existing Barracks process first so only one runner owns the database. The runner continues when you close the browser. Reboot persistence is not configured.
+Each run prints its ID. Use that ID with these commands:
 
-`npm test` checks real SQLite transitions, concurrency, review identity/revision, pause, cancellation and interrupted recovery. `npm run check` typechecks the application. Local state is ignored under `.state/`.
+```text
+barracks.ps1 resume <RUN-ID>
+barracks.ps1 show <RUN-ID>
+barracks.ps1 show <RUN-ID> --json
+barracks.ps1 signal <RUN-ID> --trigger answered --payload <JSON-FILE>
+```
 
-Use **Library → Workflows** to change graph-state parallelism for future tasks, with no runner restart. The older direct-ticket substrate reads `config/workflow.json` at startup. Capacities default to one; Builder and Reviewer capacities are independent. See [workflow configuration](docs/workflow-configuration.md). Earlier application commands belong to the [archived approaches](archive/2026-10-22/README.md).
+`signal` saves one human transition. `resume` continues execution. An answer payload file contains an object such as `{"answers":"Use SQLite and a terminal interface."}`. The current state's `outputs` determines the required keys. `show --json` emits machine-readable JSON. Use `--non-interactive` on run/resume to stop at human states without prompting.
 
-## Real-worker qualification
+SQLite at `.state/barracks.db` stores current context, state, status, workflow/persona snapshots and append-only activity/transition evidence. Use `--database` for a separate file. Raw Codex events, stderr, prompts, schemas and final replies are retained under `.state/attempts/`. Both locations contain potentially sensitive project content and are Git-ignored. Personas and workflows remain editable source files under `config/`.
 
-`npm run test:browser` checks project scope, the workflow form, user answers and ticket editing. `npm run test:projects` runs those cases plus registration/settings against an isolated configuration/database. `npm run test:real` uses real Codex personas and headless Edge for discovery, ticket review/editing and two-ticket epic delivery. `npm run test:recovery` exercises the delivery-worker recovery substrate, and `npm run test:new-project` qualifies first-code creation from empty source. Real qualification commands invoke authenticated Codex. Simulated workers remain internal test fixtures; the product accepts real workflow execution only.
+One local process owns a run at a time. Invalid replies fail without applying their payload or advancing the state. Ctrl+C during agent work terminates the owned worker tree and saves an interrupted run. Explicit `resume` retries the current read-only state. Barracks adds no automatic retry, agent time limit or exchange budget. Closing a terminal abruptly or killing the host is not qualified for worker cleanup; background hosting and automatic crash recovery remain deferred.
 
-`npm run test:library` uses isolated configuration copies, SQLite and headless Edge to check Persona/Workflow editing, validation, conflicts, mobile layout and persistence across a runner restart. Run `npm run build` first.
+```powershell
+dotnet test Barracks.slnx
+```
 
-The original bounded four-session proof remains [historical evidence](docs/codex-proof.md); its standalone adapter is archived. The current app uses the configured worker and owned-process backend. These local tests establish readiness to exercise Barracks, not certification of an unconfigured Saltwake toolchain or an authorization to integrate changes.
+## Workflow contract
 
-Project decisions, handoffs and reports live in ~/.headquarters/barracks. All work remains uncommitted.
+`schemaVersion: 3` identifies this revised format. Each workflow declares its launch `inputs` and `initial` state. States have one of three types:
+
+- `agent`: apply the named persona plus the state's instructions to its supplied inputs.
+- `human`: wait for the user to emit an allowed trigger with its payload.
+- `final`: finish with the listed inputs and display its message.
+
+`inputs` names required context values. `optionalInputs` names values supplied when present. Persona instructions define the reusable role; state instructions define the current assignment.
+
+Every `on` key is an allowed trigger. Its `target` is a literal state name. Its `outputs` lists the fields required in that trigger's payload. For example, `develop_brief` in `grilling.json` accepts:
+
+```json
+{
+  "trigger": "brief_ready",
+  "payload": {
+    "brief": "A local task list with projects and due dates."
+  }
+}
+```
+
+Barracks looks up `brief_ready` in the current state's `on` map and moves to `challenge`. The agent supplies the outcome and payload; Barracks chooses the configured destination.
+
+The runner validates the current assignment, trigger and declared payload fields before changing context or state. It accepts exactly the declared output keys, requires nonempty values, clears the transition's `clear` keys, then stores its outputs and destination together with a transition event. Rejected replies preserve context and state and mark the attempt failed. An output declaration checks the presence of an artifact; its correctness requires the configured review or acceptance stage.
+
+Each question has an explicit human state and return target. For example, `develop_brief` emits `needs_user` with `questions`, and `await_develop_brief` accepts `answered` with `answers` before returning to `develop_brief`. Human review states use `approved` and `changes`; an answer alone does not grant approval.
+
+`clear` removes artifacts that a revision invalidates. A new brief clears downstream specifications and approvals. A new candidate clears earlier review and acceptance results. Store execution history separately from the current context so revisions preserve their audit trail.
+
+## Starting scope
+
+All six definitions are standalone. Delivery runs one ticket at a time through Lead assessment, BA readiness, Builder implementation and independent review. The qualified variants add a separate Spec review before Standards review. Lead ticket acceptance records evidence; integration and external ticket status changes remain separate operations.
+
+The `parallel-delivery` ID is retained for continuity, but its current graph is sequential. Parallel scheduling, child workflows and worktree automation are deferred. Agents receive configured branch and workspace authority through `project`.
+
+Integration and publication are explicit human checkpoints. They confirm an operation already performed with the user's available tools, including its actual source identity or published references. An agent response does not apply a Git merge, publish PMT tickets, copy source files or update external ticket status.
+
+Legacy workflow kinds, executor selectors, role aliases, concurrency settings, automatic-exchange budgets, retry policy, named guards and hidden resume targets have been removed. Timeouts, recovery and automated operations remain future runner design decisions. Start by exercising `grilling.json` through questions, revisions and approval before adding delivery automation.
