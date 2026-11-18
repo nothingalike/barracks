@@ -1,0 +1,498 @@
+import { Button, ComboBox, TextEdit, LineEdit, ScrollView, VerticalBox, HorizontalBox, Palette } from "std-widgets.slint";
+
+export struct QuestionRow {
+    id: string,
+    text: string,
+    suggestions: string,
+    references: string,
+    answer: string,
+}
+
+export struct FileRow {
+    name: string,
+    depth: int,
+    directory: bool,
+    expanded: bool,
+    change: int,
+    selected: bool,
+}
+
+export struct ResultBlock {
+    content: styled-text,
+    kind: int,
+}
+
+export struct OutputRow {
+    title: string,
+    detail: string,
+    selected: bool,
+}
+
+// Keep native button behavior while centering compact icons without text padding.
+component CenteredIconButton inherits Rectangle {
+    in property <image> symbol;
+    in property <length> symbol-size: 20px;
+    in property <string> label;
+    in property <bool> enabled: true;
+    callback clicked();
+    width: 36px;
+    height: 36px;
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    Button {
+        width: parent.width;
+        height: parent.height;
+        enabled: root.enabled;
+        accessible-label: root.label;
+        clicked => { root.clicked(); }
+    }
+    Image {
+        source: root.symbol;
+        width: root.symbol-size;
+        height: root.symbol-size;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        opacity: root.enabled ? 1 : 0.4;
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Barracks · " + root.project-name;
+    preferred-width: 1180px;
+    preferred-height: 860px;
+    min-width: 850px;
+    min-height: 720px;
+    background: #171a1f;
+    default-font-family: "Segoe UI";
+    default-font-size: 14px;
+    init => { Palette.color-scheme = ColorScheme.dark; }
+
+    in-out property <bool> running;
+    in-out property <bool> has-result;
+    in-out property <bool> previewing;
+    in-out property <bool> can-open;
+    in-out property <string> project-name;
+    in-out property <string> status: "Ready";
+    in-out property <string> elapsed: "00:00";
+    in-out property <string> activity;
+    in-out property <string> result-title: "Task result";
+    in-out property <string> artifact;
+    in-out property <string> change-summary;
+    in-out property <string> notice;
+    in-out property <string> instructions-text;
+    changed instructions-text => { root.inspect-command(root.instructions-text); }
+    in-out property <bool> command-menu-open;
+    in-out property <bool> plan-command;
+    in-out property <string> operation-target;
+    in-out property <bool> operation-active;
+    in-out property <bool> operation-visible;
+    in-out property <bool> plan-can-continue;
+    in-out property <bool> plan-ready;
+    in-out property <bool> plan-can-resume;
+    in-out property <string> operation-feedback;
+    in-out property <string> operation-summary;
+    in-out property <[QuestionRow]> questions;
+    in-out property <string> harness: "Codex";
+    in-out property <bool> options-open;
+    in-out property <bool> explorer-open: true;
+    in-out property <bool> outputs-open: true;
+    in-out property <bool> browsing-history;
+    in-out property <int> drag-index: -1;
+    in-out property <length> drag-x;
+    in-out property <length> drag-y;
+    out property <bool> drop-ready: root.drag-index >= 0 && !root.running
+        && root.drag-x >= instructions-drop.absolute-position.x
+        && root.drag-x <= instructions-drop.absolute-position.x + instructions-drop.width
+        && root.drag-y >= instructions-drop.absolute-position.y
+        && root.drag-y <= instructions-drop.absolute-position.y + instructions-drop.height;
+    in-out property <int> active-tab;
+    in-out property <bool> editing-task: true;
+    in-out property <string> task-title;
+    in-out property <string> task-instructions;
+    in-out property <int> changed-count;
+    in-out property <[ResultBlock]> diff-blocks;
+    in-out property <[string]> activity-rows;
+    out property <length> activity-scroll-offset;
+    in-out property <[string]> task-attachments;
+    in-out property <string> viewed-status;
+    in-out property <string> viewed-elapsed;
+    in-out property <string> latest-title;
+    property <string> displayed-status: root.browsing-history ? root.viewed-status : root.status;
+    property <string> displayed-elapsed: root.browsing-history ? root.viewed-elapsed : root.elapsed;
+    property <bool> showing-activity: root.active-tab == 2;
+    in-out property <[FileRow]> files;
+    in-out property <[string]> attachments;
+    in-out property <[ResultBlock]> result-blocks;
+    in-out property <[OutputRow]> saved-outputs;
+    callback choose-folder();
+    callback add-files();
+    callback edit-task();
+    callback attach-file(int);
+    callback remove-attachment(int);
+    callback execute(string, string);
+    callback stop-task();
+    callback select-file(int);
+    callback select-output(int);
+    callback show-latest();
+    callback copy-output();
+    callback open-file();
+    callback show-result();
+    callback inspect-command(string);
+    callback answer-question(int, string);
+    callback feedback-edited(string);
+    callback continue-plan();
+    callback finish-plan();
+    callback pause-plan();
+    callback resume-plan();
+
+    VerticalLayout {
+        spacing: 0px;
+        Rectangle {
+            height: 44px; background: #22252a;
+            HorizontalBox {
+                padding-left: 22px; padding-top: 4px; padding-bottom: 4px;
+                Rectangle {
+                    width: 22px;
+                    Image { source: @image-url("app.svg"); width: 22px; height: 24px; y: (parent.height - self.height) / 2; }
+                }
+                Text { text: "Barracks"; color: #f3f4f5; font-weight: 700; font-size: 19px; vertical-alignment: center; }
+                Rectangle { width: 1px; background: #656b74; }
+                Image { source: @image-url("folder.svg"); width: 19px; }
+                Text { text: root.project-name; color: #e9ebee; vertical-alignment: center; }
+                Rectangle { horizontal-stretch: 1; }
+                CenteredIconButton { symbol: @image-url("gear.svg"); label: "Options"; clicked => { root.options-open = !root.options-open; } }
+            }
+        }
+        Rectangle { height: 1px; background: #3b4047; }
+        HorizontalLayout {
+            padding: 0px;
+            spacing: 0px;
+            VerticalBox {
+                padding: 22px;
+                spacing: 10px;
+                horizontal-stretch: 1;
+                if root.options-open: Rectangle {
+                    height: 56px;
+                    background: #26282b;
+                    border-radius: 4px;
+                    HorizontalBox {
+                        Text { text: "Harness"; color: #c5c8cc; vertical-alignment: center; }
+                        ComboBox {
+                            model: ["Codex", "Claude Code"];
+                            current-index: root.harness == "Claude Code" ? 1 : 0;
+                            enabled: !root.running;
+                            horizontal-stretch: 1;
+                            selected(value) => { root.harness = value; }
+                        }
+                    }
+                }
+                if root.operation-active || (!root.editing-task && (!root.running || root.browsing-history)): Rectangle {
+                    height: root.task-attachments.length > 0 ? 174px : 156px; background: #22262c; border-color: #3b4047; border-width: 1px; border-radius: 7px;
+                    VerticalBox {
+                        padding: 20px; spacing: 10px;
+                        HorizontalBox {
+                            padding: 0px;
+                            Text { text: "TASK"; color: #aeb6bf; font-size: 12px; horizontal-stretch: 1; }
+                            if !root.operation-active: Button { text: "Edit task"; enabled: !root.running; clicked => { root.edit-task(); } }
+                        }
+                        Text { text: root.task-title; color: #f3f4f5; font-size: 23px; font-weight: 700; overflow: elide; }
+                        Text { text: root.task-instructions; color: #c5cbd3; wrap: word-wrap; overflow: elide; vertical-stretch: 1; }
+                        if root.task-attachments.length > 0: Text { text: "Attached: " + root.task-attachments[0] + (root.task-attachments.length > 1 ? " + more" : ""); color: #a6cbe8; font-size: 13px; }
+                    }
+                }
+                if !root.operation-active && (root.editing-task || (root.running && !root.browsing-history)): Text { text: "Instructions"; color: #f3f4f5; font-size: 16px; font-weight: 600; }
+                instructions-drop := Rectangle {
+                    visible: !root.operation-active && (root.editing-task || (root.running && !root.browsing-history));
+                    background: root.drop-ready ? #263d4d : #26282b;
+                    border-color: root.drop-ready ? #78b8ee : #44474b;
+                    border-width: 1px;
+                    border-radius: 5px;
+                    height: !root.operation-active && (root.editing-task || (root.running && !root.browsing-history)) ? 184px : 0px;
+                    VerticalBox {
+                        padding: 8px;
+                        spacing: 6px;
+                        instructions := TextEdit { text <=> root.instructions-text; placeholder-text: "Enter a task, or type / to choose an operation"; vertical-stretch: 1; min-height: 60px; }
+                        if root.attachments.length > 0: ScrollView {
+                            height: 38px;
+                            HorizontalBox {
+                                padding: 0px;
+                                for attachment[index] in root.attachments: Button {
+                                    text: attachment + "  ×";
+                                    horizontal-stretch: 0;
+                                    enabled: !root.running;
+                                    clicked => { root.remove-attachment(index); }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                            }
+                        }
+                        HorizontalBox {
+                            padding: 0px;
+                            Button { text: "+ Add files"; enabled: !root.running; clicked => { root.add-files(); } }
+                            Text { text: "Drag files here from Explorer"; color: #9ca5af; font-size: 12px; vertical-alignment: center; horizontal-stretch: 1; }
+                        }
+                    }
+                }
+                if root.command-menu-open && !root.operation-active: Button {
+                    text: "/plan   Plan Work for Issue";
+                    clicked => { root.instructions-text = "/plan "; root.command-menu-open = false; }
+                }
+                if root.plan-command && !root.operation-active: HorizontalBox {
+                    Text { text: "Plan Work for Issue"; color: #9fcaeb; vertical-alignment: center; }
+                    LineEdit { text <=> root.operation-target; placeholder-text: "Issue file or reference"; enabled: !root.running; horizontal-stretch: 1; }
+                }
+                if root.plan-can-resume && !root.operation-active: Button { text: "Resume planning"; enabled: !root.running; clicked => { root.resume-plan(); } }
+                HorizontalBox {
+                    Text { text: root.running ? "●" : (root.displayed-status == "Completed" ? "✓" : (root.status == "Failed" ? "×" : "○")); color: root.running ? #78b8ee : (root.status == "Completed" ? #77ca7b : #c5c8cc); vertical-alignment: center; }
+                    Text { text: root.displayed-status; font-weight: 600; color: #f3f4f5; vertical-alignment: center; }
+                    Text { text: root.displayed-elapsed; color: #b6bbc2; vertical-alignment: center; }
+                    Rectangle { horizontal-stretch: 1; }
+                    if root.browsing-history: Button { text: root.running ? "Live activity" : "Latest task"; clicked => { root.show-latest(); } }
+                    if root.operation-active && !root.running: Button { text: "New task"; clicked => { root.pause-plan(); } }
+                    if root.running || !root.operation-active: Button {
+                        text: root.running ? "Stop" : (root.plan-command ? "Start planning" : (root.status == "Ready" ? "Run task" : "Run again"));
+                        enabled: root.running || ((!root.plan-command || root.operation-target != "") && (root.editing-task ? root.instructions-text != "" : root.task-instructions != ""));
+                        clicked => {
+                            if root.running { root.stop-task(); }
+                            else { root.execute(root.harness, root.editing-task ? root.instructions-text : root.task-instructions); }
+                        }
+                    }
+                }
+                HorizontalBox {
+                    padding: 0px; spacing: 12px; height: 44px;
+                    for label[index] in ["Preview", "Changes", "Activity", "Questions"]: Rectangle {
+                        width: index == 1 ? 132px : 100px;
+                        visible: index != 3 || root.operation-visible;
+                        Text { text: label + (index == 1 && root.changed-count > 0 ? "  " + root.changed-count : ""); color: root.active-tab == index ? #ffffff : #aeb6bf; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                        Rectangle { y: parent.height - 3px; height: 3px; width: parent.width; background: root.active-tab == index ? #49a9ed : transparent; border-radius: 2px; }
+                        TouchArea { clicked => { root.active-tab = index; } }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                }
+                Rectangle {
+                    background: #1a1e24;
+                    border-color: #44474b;
+                    border-width: 1px;
+                    border-radius: 5px;
+                    vertical-stretch: 1;
+                    VerticalBox {
+                        padding: 16px;
+                        spacing: 12px;
+                        if root.showing-activity: Text { text: root.running && !root.browsing-history ? "Live activity" : "Task activity"; color: #f3f4f5; font-weight: 600; font-size: 18px; }
+                        if root.active-tab == 3 && root.operation-visible: ScrollView {
+                            content-width: max(0px, self.visible-width - 18px);
+                            vertical-stretch: 1;
+                            VerticalBox {
+                                padding: 0px; spacing: 16px;
+                                Text { text: root.operation-summary; color: #d9dfe6; wrap: word-wrap; }
+                                for question[index] in root.questions: VerticalBox {
+                                    padding: 0px; spacing: 6px;
+                                    Text { text: question.text; color: #f3f4f5; font-weight: 600; wrap: word-wrap; }
+                                    if question.suggestions != "": Text { text: "Suggestions (choose explicitly):\n" + question.suggestions; color: #9fcaeb; wrap: word-wrap; }
+                                    if question.references != "": Text { text: "References:\n" + question.references; color: #aeb6bf; font-size: 12px; wrap: word-wrap; }
+                                    TextEdit { text: question.answer; height: 72px; enabled: !root.running; edited => { root.answer-question(index, self.text); } }
+                                }
+                                Text { text: root.plan-ready ? "New direction" : "Additional feedback"; color: #f3f4f5; font-weight: 600; }
+                                TextEdit { text <=> root.operation-feedback; height: 80px; enabled: !root.running; edited => { root.feedback-edited(self.text); } }
+                                Text { text: "Answers and feedback are saved. Update plan applies them in the next execution."; color: #aeb6bf; font-size: 12px; wrap: word-wrap; }
+                            }
+                        }
+                        if root.active-tab == 3 && root.operation-visible: HorizontalBox {
+                    if root.operation-visible && !root.running: Button { text: root.status == "Failed" || root.status == "Interrupted" ? "Retry step" : "Update plan"; enabled: root.plan-can-continue; clicked => { root.continue-plan(); } }
+                    if root.operation-visible && root.plan-ready && !root.running: Button { text: "Finish operation"; clicked => { root.finish-plan(); } }
+                                    Rectangle { horizontal-stretch: 1; }
+                                }
+                        if root.active-tab < 2 && root.has-result: HorizontalBox {
+                            Text { text: root.active-tab == 1 ? "Observed changes" : root.result-title; color: #f3f4f5; font-size: 18px; font-weight: 600; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
+                            if root.browsing-history: Button { text: root.running ? "Live activity" : (root.status == "Ready" ? "Close output" : "Latest result"); clicked => { root.show-latest(); } }
+                            if root.active-tab == 0 && root.previewing && (root.browsing-history || root.status != "Ready"): Button { text: "Task result"; clicked => { root.show-result(); } }
+                            if root.active-tab == 0: Button { text: "Copy"; clicked => { root.copy-output(); } }
+                            Button { text: "Open file"; enabled: root.can-open; clicked => { root.open-file(); } }
+                        }
+                        if root.active-tab == 1: ScrollView {
+                            vertical-stretch: 1; content-width: self.visible-width;
+                            VerticalBox {
+                                padding: 0px; spacing: 2px;
+                                for block in root.diff-blocks: Rectangle {
+                                    background: block.kind == 5 ? #203c2a : (block.kind == 6 ? #44262c : #242a33);
+                                    height: diff-text.preferred-height + 12px;
+                                    diff-text := StyledText { x: 10px; y: 6px; width: parent.width - 20px; text: block.content; default-font-family: "Consolas"; default-font-size: 13px; default-color: block.kind == 5 ? #a5e5b0 : (block.kind == 6 ? #f2b2b7 : #c5d5e5); }
+                                }
+                                if root.diff-blocks.length == 0: Text { text: "No changes captured for this task."; color: #aeb6bf; }
+                                Rectangle { vertical-stretch: 1; }
+                            }
+                        }
+                        if root.showing-activity: ScrollView {
+                            vertical-stretch: 1; content-width: self.visible-width;
+                            content-y: min(0px, self.visible-height - self.content-height);
+                            property <[string]> log-rows: root.activity-rows;
+                            changed log-rows => { self.content-y = min(0px, self.visible-height - self.content-height); }
+                            changed content-height => { self.content-y = min(0px, self.visible-height - self.content-height); }
+                            changed visible-height => { self.content-y = min(0px, self.visible-height - self.content-height); }
+                            changed content-y => { root.activity-scroll-offset = self.content-y; }
+                            VerticalBox {
+                                padding: 0px; spacing: 0px;
+                                for row in root.activity-rows: Rectangle {
+                                    height: max(62px, activity-text.preferred-height + 26px);
+                                    Rectangle { x: 0px; y: 24px; width: 8px; height: 8px; border-radius: 4px; background: #49a9ed; }
+                                    activity-text := Text { x: 26px; y: 14px; width: parent.width - 32px; text: row; color: #d9dfe6; wrap: word-wrap; font-size: 14px; }
+                                    Rectangle { y: parent.height - 1px; height: 1px; width: parent.width; background: #3b4047; }
+                                }
+                                if root.activity-rows.length == 0: Text { text: "Activity appears when a task runs."; color: #aeb6bf; }
+                                Rectangle { vertical-stretch: 1; }
+                            }
+                        }
+                        if root.active-tab == 0 && root.artifact != "": Text { text: root.artifact; color: #aeb6bf; wrap: word-wrap; }
+                        if root.active-tab == 0 && root.has-result: ScrollView {
+                            vertical-stretch: 1;
+                            content-width: self.visible-width;
+                            VerticalBox {
+                                spacing: 10px;
+                                padding: 0px;
+                                for block in root.result-blocks: StyledText {
+                                    text: block.content;
+                                    default-color: #e9ebee;
+                                    default-font-family: block.kind == 4 ? "Consolas" : "Segoe UI";
+                                    default-font-size: block.kind == 1 ? 27px : (block.kind == 2 ? 21px : (block.kind == 3 ? 17px : 14px));
+                                }
+                                Rectangle { vertical-stretch: 1; }
+                            }
+                        }
+                        if root.active-tab == 0 && !root.has-result: Text {
+                            text: "Give the task instructions, then run it.\nEach run starts a fresh execution.";
+                            color: #aeb6bf;
+                            wrap: word-wrap;
+                            vertical-stretch: 1;
+                            vertical-alignment: center;
+                            horizontal-alignment: center;
+                        }
+                        if root.active-tab < 2 && root.change-summary != "": Text { text: root.change-summary; color: #aeb6bf; wrap: word-wrap; }
+                    }
+                }
+                if root.notice != "": Text { text: root.notice; color: #c6d8e9; wrap: word-wrap; }
+            }
+            Rectangle { width: 1px; background: #44474b; }
+            VerticalBox {
+                width: 300px;
+                padding: 16px;
+                spacing: 12px;
+                HorizontalBox {
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 34px;
+                        Image { source: @image-url("folder.svg"); x: 0px; y: (parent.height - self.height) / 2; width: 18px; height: 16px; }
+                        Text { x: 26px; width: parent.width - self.x; height: parent.height; text: root.project-name; color: #f3f4f5; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                    }
+                    Button { text: "Browse…"; enabled: !root.running; clicked => { root.choose-folder(); } }
+                }
+                Rectangle { height: 1px; background: #44474b; }
+                Rectangle {
+                    height: 34px;
+                    Image { source: root.explorer-open ? @image-url("down.svg") : @image-url("right.svg"); x: 4px; y: (parent.height - self.height) / 2; width: 10px; height: 10px; }
+                    Text { x: 24px; height: parent.height; text: "Explorer"; color: #f3f4f5; font-weight: 600; vertical-alignment: center; }
+                    TouchArea { clicked => { root.explorer-open = !root.explorer-open; } }
+                }
+                if root.explorer-open: ScrollView {
+                    height: min(240px, max(40px, root.files.length * 34px));
+                    content-width: max(0px, self.visible-width - 18px);
+                    VerticalBox {
+                        padding: 0px;
+                        spacing: 2px;
+                        for file[index] in root.files: Rectangle {
+                            height: 32px;
+                            background: file.selected ? #314c62 : (file-touch.has-hover ? #303338 : transparent);
+                            border-radius: 4px;
+                            Image { source: file.expanded ? @image-url("down.svg") : @image-url("right.svg"); x: 6px + file.depth * 16px; y: (parent.height - self.height) / 2; width: 9px; height: 9px; visible: file.directory; }
+                            Image { source: file.directory ? @image-url("folder.svg") : @image-url("file.svg"); x: 22px + file.depth * 16px; y: (parent.height - self.height) / 2; width: 16px; height: 16px; }
+                            Text { x: 46px + file.depth * 16px; width: max(0px, parent.width - self.x - 58px); height: parent.height; text: file.name; color: #e9ebee; vertical-alignment: center; overflow: elide; }
+                            Text { x: parent.width - 49px; width: 12px; height: parent.height; text: file.change == 0 ? "" : (file.change == 1 ? "A" : "M"); color: file.change == 1 ? #77ca7b : #78b8ee; vertical-alignment: center; }
+                            file-touch := TouchArea {
+                                width: parent.width - (file.directory ? 0px : 34px);
+                                property <bool> was-dragging;
+                                clicked => { if !self.was-dragging { root.select-file(index); } }
+                                moved => {
+                                    if self.pressed && !file.directory && !root.running
+                                        && (abs(self.mouse-x - self.pressed-x) > 6px || abs(self.mouse-y - self.pressed-y) > 6px) {
+                                        self.was-dragging = true;
+                                        root.drag-index = index;
+                                        root.drag-x = self.absolute-position.x + self.mouse-x;
+                                        root.drag-y = self.absolute-position.y + self.mouse-y;
+                                    }
+                                }
+                                pointer-event(event) => {
+                                    if event.kind == PointerEventKind.down { self.was-dragging = false; }
+                                    if event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel {
+                                        if event.kind == PointerEventKind.up && self.was-dragging && root.drop-ready { root.attach-file(index); }
+                                        root.drag-index = -1;
+                                    }
+                                }
+                            }
+                            if !file.directory: CenteredIconButton {
+                                x: parent.width - 30px; y: (parent.height - self.height) / 2;
+                                width: 26px; height: 26px;
+                                symbol: @image-url("plus.svg");
+                                symbol-size: 14px;
+                                label: "Attach " + file.name;
+                                enabled: !root.running;
+                                clicked => { root.attach-file(index); }
+                            }
+                        }
+                        Rectangle { vertical-stretch: 1; }
+                    }
+                }
+                Rectangle { height: 1px; background: #44474b; }
+                Rectangle {
+                    height: 34px;
+                    Image { source: root.outputs-open ? @image-url("down.svg") : @image-url("right.svg"); x: 4px; y: (parent.height - self.height) / 2; width: 10px; height: 10px; }
+                    Text { x: 24px; height: parent.height; text: "Recent tasks"; color: #f3f4f5; font-weight: 600; vertical-alignment: center; }
+                    TouchArea { clicked => { root.outputs-open = !root.outputs-open; } }
+                }
+                if root.outputs-open && root.running: Rectangle {
+                    height: 60px; background: root.browsing-history ? transparent : #29465d; border-radius: 5px;
+                    Text { x: 10px; y: 9px; width: parent.width - 20px; text: root.latest-title; color: #f3f4f5; font-weight: 600; overflow: elide; }
+                    Text { x: 10px; y: 34px; text: "Running / " + root.elapsed; color: #9fcaeb; font-size: 12px; }
+                    TouchArea { clicked => { root.show-latest(); } }
+                }
+                if root.outputs-open && root.saved-outputs.length == 0: Text { text: "Completed task outputs appear here."; color: #9ca5af; wrap: word-wrap; font-size: 12px; }
+                if root.outputs-open && root.saved-outputs.length > 0: ScrollView {
+                    height: min(180px, root.saved-outputs.length * 62px);
+                    content-width: self.visible-width;
+                    VerticalBox {
+                        padding: 0px;
+                        spacing: 2px;
+                        for output[index] in root.saved-outputs: Rectangle {
+                            height: 60px;
+                            background: output.selected ? #314c62 : (output-touch.has-hover ? #303338 : transparent);
+                            border-radius: 4px;
+                            Image { source: @image-url("file.svg"); x: 8px; y: (parent.height - self.height) / 2; width: 16px; height: 16px; }
+                            Text { x: 34px; y: 8px; width: parent.width - 42px; height: 22px; text: output.title; color: #e9ebee; vertical-alignment: center; overflow: elide; }
+                            Text { x: 34px; y: 32px; width: parent.width - 42px; height: 18px; text: output.detail; color: #aeb6bf; font-size: 11px; vertical-alignment: center; overflow: elide; }
+                            output-touch := TouchArea { clicked => { root.select-output(index); } }
+                        }
+                    }
+                }
+                Rectangle { vertical-stretch: 1; }
+            }
+        }
+        Rectangle {
+            height: 32px;
+            background: #242629;
+            border-color: #44474b;
+            border-width: 1px;
+            HorizontalBox {
+                padding-left: 16px;
+                padding-top: 0px;
+                padding-bottom: 0px;
+                Text { text: root.status + " · " + root.harness; color: #aeb6bf; vertical-alignment: center; }
+                Rectangle { horizontal-stretch: 1; }
+                Text { text: root.project-name; color: #aeb6bf; vertical-alignment: center; }
+            }
+        }
+    }
+    if root.drag-index >= 0: Rectangle {
+        x: root.drag-x + 12px;
+        y: root.drag-y + 12px;
+        width: 190px; height: 32px;
+        background: #314c62; border-color: #78b8ee; border-width: 1px; border-radius: 4px;
+        Text { x: 8px; width: parent.width - 16px; height: parent.height; text: root.files[root.drag-index].name; color: #f3f4f5; vertical-alignment: center; overflow: elide; }
+    }
+}
